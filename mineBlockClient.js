@@ -1,12 +1,16 @@
 const WebSocket = require('ws');
 const readline = require('readline');
+const crypto = require('crypto');
+const fs = require('fs');
 
 const rl = readline.createInterface({
     input: process.stdin,
     output: process.stdout
 });
 
-const ws = new WebSocket('ws://localhost:6001');  // Connect to your server
+const privateKey = fs.readFileSync('privateKey.pem', 'utf8');
+
+const ws = new WebSocket('ws://localhost:6001');
 
 ws.on('open', () => {
     console.log('Connected to the blockchain node.');
@@ -29,7 +33,7 @@ ws.on('message', (message) => {
 });
 
 function promptUser() {
-    rl.question('Enter a command (transaction/mine/view): ', (command) => {
+    rl.question('Enter a command (transaction/mine/view/balance): ', (command) => {
         switch (command) {
             case 'transaction':
                 handleTransaction();
@@ -40,10 +44,24 @@ function promptUser() {
             case 'view':
                 handleView();
                 break;
+            case 'balance':
+                handleBalance();
+                break;
             default:
                 console.log('Unknown command');
                 promptUser();
         }
+    });
+}
+
+function handleBalance() {
+    rl.question('Enter address to view balance: ', (address) => {
+        const balanceRequest = {
+            type: 'viewBalance',
+            address: address
+        };
+        ws.send(JSON.stringify(balanceRequest));
+        console.log('Requesting balance for address:', address);
     });
 }
 
@@ -55,8 +73,25 @@ function handleTransaction() {
                     type: 'transaction',
                     fromAddress: fromAddress,
                     toAddress: toAddress,
-                    amount: parseFloat(amount)
+                    amount: parseFloat(amount),
                 };
+
+                // Sign the transaction
+                const sign = crypto.createSign('SHA256');
+                const transactionData = JSON.stringify({
+                    fromAddress: fromAddress,
+                    toAddress: toAddress,
+                    amount: parseFloat(amount)
+                });
+                sign.update(transactionData);
+                const signature = sign.sign(privateKey, 'hex');
+
+                // Include the signature in the transaction
+                transaction.signature = signature;
+
+                console.log('Transaction Data:', transactionData);
+                console.log('Signature:', signature);
+
                 ws.send(JSON.stringify(transaction));
                 console.log('Transaction sent');
                 promptUser();
@@ -64,6 +99,7 @@ function handleTransaction() {
         });
     });
 }
+
 
 function handleMine() {
     rl.question('Enter your address to receive mining reward: ', (address) => {

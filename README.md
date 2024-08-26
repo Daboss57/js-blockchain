@@ -3,7 +3,14 @@
 To use this in terminal make sure you have Node.js installed.
 Make sure to run the following command:
 
-``npm install crypto ws readline``
+**Install Dependencies**
+   Open your terminal and run:
+   ``npm install crypto ws readline``
+
+Before running the blockchain, you need RSA key pairs for signing transactions. Run the following command to generate and save the keys:
+``node generateKeys.js``
+This will generate two files: `privateKey.pem` and `publicKey.pem` in the same directory.
+You can use these keys to sign transactions and verify signatures.
 
 Now, open this in terminal (preferably the IDE's terminal). I used VSC so this is how I did it:
 
