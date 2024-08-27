@@ -5,6 +5,10 @@ const fs = require('fs');
 const TARGET_BLOCK_TIME = 10000; // Target time in milliseconds (e.g., 10 seconds)
 const ADJUSTMENT_INTERVAL = 10; // Number of blocks to consider for difficulty adjustment
 
+const bootstrapServerUrl = 'ws://localhost:8080';
+
+
+
 const privateKey = fs.readFileSync('privateKey.pem', 'utf8');
 const publicKey = fs.readFileSync('publicKey.pem', 'utf8');
 
@@ -13,6 +17,51 @@ const transactionData = JSON.stringify({
   toAddress: this.toAddress,
   amount: this.amount
 });
+
+function connectToBootstrapServer() {
+  const ws = new WebSocket(bootstrapServerUrl);
+
+  ws.on('open', () => {
+      console.log('Connected to bootstrap server');
+      ws.send(JSON.stringify({ type: 'register', url: `ws://localhost:${p2pPort}` }));
+  });
+
+  ws.on('message', (message) => {
+      const data = JSON.parse(message);
+
+      if (data.type === 'peerList') {
+          data.peers.forEach(peerUrl => {
+              if (!peers.includes(peerUrl)) {
+                  peers.push(peerUrl);
+                  connectToPeer(peerUrl); // Connect to new peers
+              }
+          });
+      } else if (data.type === 'newPeer') {
+          if (!peers.includes(data.url)) {
+              peers.push(data.url);
+              connectToPeer(data.url); // Connect to new peers
+          }
+      }
+  });
+}
+
+function connectToPeer(peerUrl) {
+  const ws = new WebSocket(peerUrl);
+
+  ws.on('open', () => {
+      console.log(`Connected to peer: ${peerUrl}`);
+  });
+
+  ws.on('message', (message) => {
+      const data = JSON.parse(message);
+
+      if (data.type === 'newBlock') {
+          console.log('Received new block from peer:', data.block);
+          blockchain.addBlock(data.block);
+      }
+  });
+}
+
 
 
 class Block {
@@ -77,7 +126,6 @@ class Blockchain {
           const timeTaken = block.timestamp - this.getLatestBlock().timestamp;
           this.blockGenerationTime.push(timeTaken);
 
-          // Adjust difficulty every `ADJUSTMENT_INTERVAL` blocks
           if (this.blockGenerationTime.length >= ADJUSTMENT_INTERVAL) {
               this.adjustDifficulty();
               this.blockGenerationTime = [];
@@ -96,7 +144,6 @@ class Blockchain {
     }
 
     adjustDifficulty() {
-      // Average block generation time
       const averageTime = this.blockGenerationTime.reduce((sum, time) => sum + time, 0) / this.blockGenerationTime.length;
 
       if (averageTime < TARGET_BLOCK_TIME) {
@@ -187,48 +234,47 @@ class Transaction {
 const p2pPort = process.env.P2P_PORT || 6001;
 const peers = process.env.PEERS ? process.env.PEERS.split(',') : [];
 
-const blockchain = new Blockchain();
-
 const wss = new WebSocket.Server({ port: p2pPort });
+
+const blockchain = new Blockchain();
 
 let connectedPeers = [];
 
 wss.on('connection', (ws) => {
   connectedPeers.push(ws);
-  console.log(`New peer connected on port ${p2pPort}`);   
+  console.log(`New peer connected on port ${p2pPort}`);
 
   ws.on('message', (message) => {
-    const data = JSON.parse(message);
+      const data = JSON.parse(message);
 
-    if (data.type === 'transaction') {
-        const transaction = new Transaction(data.fromAddress, data.toAddress, data.amount);
-        transaction.signature = data.signature; // Include the signature from the message
+      if (data.type === 'transaction') {
+          const transaction = new Transaction(data.fromAddress, data.toAddress, data.amount);
+          transaction.signature = data.signature;
 
-        console.log('Transaction received');
-        console.log('Transaction Data:', JSON.stringify(transaction));
-        console.log('Signature:', transaction.signature);
+          console.log('Transaction received');
+          console.log('Transaction Data:', JSON.stringify(transaction));
+          console.log('Signature:', transaction.signature);
 
-        try {
-            blockchain.addTransaction(transaction);
-            ws.send(JSON.stringify({ type: 'transactionStatus', status: 'Transaction added to pending transactions' }));
-        } catch (e) {
-            ws.send(JSON.stringify({ type: 'transactionStatus', status: 'Transaction failed: ' + e.message }));
-        }
-    } else if (data.type === 'mineBlock') {
-        console.log('Mining block as requested');
-        blockchain.minePendingTransactions(data.miningRewardAddress);
-        broadcastNewBlock(blockchain.getLatestBlock());
-    } else if (data.type === 'viewBlockchain') {
-        ws.send(JSON.stringify({ type: 'blockchain', chain: blockchain.chain }));
-    } else if (data.type === 'viewBalance') {
-        const balance = blockchain.getBalanceOfAddress(data.address);
-        ws.send(JSON.stringify({ type: 'balance', address: data.address, balance: balance }));
-    } else if (data.type === 'newBlock') {
-        console.log('Received new block from peer:', data.block);
-        blockchain.addBlock(data.block);
-    }
-});
-
+          try {
+              blockchain.addTransaction(transaction);
+              ws.send(JSON.stringify({ type: 'transactionStatus', status: 'Transaction added to pending transactions' }));
+          } catch (e) {
+              ws.send(JSON.stringify({ type: 'transactionStatus', status: 'Transaction failed: ' + e.message }));
+          }
+      } else if (data.type === 'mineBlock') {
+          console.log('Mining block as requested');
+          blockchain.minePendingTransactions(data.miningRewardAddress);
+          broadcastNewBlock(blockchain.getLatestBlock());
+      } else if (data.type === 'viewBlockchain') {
+          ws.send(JSON.stringify({ type: 'blockchain', chain: blockchain.chain }));
+      } else if (data.type === 'viewBalance') {
+          const balance = blockchain.getBalanceOfAddress(data.address);
+          ws.send(JSON.stringify({ type: 'balance', address: data.address, balance: balance }));
+      } else if (data.type === 'newBlock') {
+          console.log('Received new block from peer:', data.block);
+          blockchain.addBlock(data.block);
+      }
+  });
 
   ws.on('close', () => {
       connectedPeers = connectedPeers.filter(peer => peer !== ws);
@@ -237,14 +283,17 @@ wss.on('connection', (ws) => {
 
 
 function broadcastNewBlock(newBlock) {
-    connectedPeers.forEach(peer => {
-        peer.send(JSON.stringify({
-            type: 'newBlock',
-            block: newBlock
-        }));
-    });
+  connectedPeers.forEach(peer => {
+      peer.send(JSON.stringify({
+          type: 'newBlock',
+          block: newBlock
+      }));
+  });
 }
 
+connectToBootstrapServer();
+
+/*
 peers.forEach(peer => {
     const ws = new WebSocket(peer);
 
@@ -261,5 +310,6 @@ peers.forEach(peer => {
         }
     });
 });
+*/
 
 console.log(`Listening for P2P connections on port: ${p2pPort}`);
