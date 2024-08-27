@@ -12,6 +12,10 @@ Before running the blockchain, you need RSA key pairs for signing transactions. 
 This will generate two files: `privateKey.pem` and `publicKey.pem` in the same directory.
 You can use these keys to sign transactions and verify signatures.
 
+Before starting anything else, you will need to start the bootstrap server with:
+``node bootstrapServer.js``
+This will start the bootstrap server on port 8080, which helps nodes discover each other.
+
 Now, open this in terminal (preferably the IDE's terminal). I used VSC so this is how I did it:
 
 1. Download all the files and open in VSC
