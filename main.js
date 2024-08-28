@@ -95,7 +95,7 @@ class Blockchain {
         this.chain = [this.createGenesisBlock()];
         this.difficulty = 5;
         this.pendingTransactions = [];
-        this.miningReward = 100;
+        this.transactionFeePercentage = 0.05;
         this.blockGenerationTime = [];
     }
 
@@ -108,14 +108,18 @@ class Blockchain {
     }
 
     addTransaction(transaction) {
+        const feeAmount = transaction.amount * this.transactionFeePercentage;
+        const amountAfterFee = transaction.amount - feeAmount;
+
+        const feeTransaction = new Transaction(transaction.fromAddress, null, feeAmount);
+
+        transaction.amount = amountAfterFee;
+
         this.pendingTransactions.push(transaction);
+        this.pendingTransactions.push(feeTransaction);
     }
 
     minePendingTransactions(miningRewardAddress) {
-        // Add a reward transaction before mining the block
-        const rewardTransaction = new Transaction(null, miningRewardAddress, this.miningReward);
-        this.pendingTransactions.push(rewardTransaction);
-
         let block = new Block(this.chain.length, new Date().toISOString(), this.pendingTransactions, this.getLatestBlock().hash);
         block.mineBlock(this.difficulty);
 
@@ -183,6 +187,8 @@ class Blockchain {
         return true;
     }
 }
+
+
 
 class Transaction {
   constructor(fromAddress, toAddress, amount) {
