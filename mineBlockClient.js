@@ -33,7 +33,7 @@ ws.on('message', (message) => {
 });
 
 function promptUser() {
-    rl.question('Enter a command (transaction/mine/view/balance): ', (command) => {
+    rl.question('Enter a command (transaction/mine/view/balance/donate-to-charity): ', (command) => {
         switch (command) {
             case 'transaction':
                 handleTransaction();
@@ -46,6 +46,9 @@ function promptUser() {
                 break;
             case 'balance':
                 handleBalance();
+                break;
+            case 'donate-to-charity':
+                handleCharity();
                 break;
             default:
                 console.log('Unknown command');
@@ -129,4 +132,41 @@ function handleView() {
             ws.send(JSON.stringify(balanceRequest));
         });
     }, 1000);
+}
+
+function handleCharity() {
+    rl.question('Enter from address: ', (fromAddress) => {
+        let coolNumber = crypto.randomInt(1,1000000000);
+
+        const toAddress = "completelyValidCharityAddress";
+        const transaction = {
+            type: 'transaction',
+            fromAddress: fromAddress,
+            toAddress: toAddress,
+            amount: parseFloat(coolNumber),
+        };
+
+        // Sign the transaction
+        const sign = crypto.createSign('SHA256');
+        const transactionData = JSON.stringify({
+            fromAddress: fromAddress,
+            toAddress: toAddress,
+            amount: parseFloat(coolNumber)
+        });
+        sign.update(transactionData);
+        const signature = sign.sign(privateKey, 'hex');
+
+        // Include the signature in the transaction
+        transaction.signature = signature;
+
+        console.log('Transaction Data:', transactionData);
+        console.log('Signature:', signature);
+
+        ws.send(JSON.stringify(transaction));
+
+        // console.log(`You donated $${coolNumber} to charity`);
+        console.log('You donated $',coolNumber, 'to charity!');
+    });
+
+    promptUser();
 }
