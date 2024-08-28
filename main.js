@@ -112,48 +112,41 @@ class Blockchain {
     }
 
     minePendingTransactions(miningRewardAddress) {
+        // Add a reward transaction before mining the block
+        const rewardTransaction = new Transaction(null, miningRewardAddress, this.miningReward);
+        this.pendingTransactions.push(rewardTransaction);
+
         let block = new Block(this.chain.length, new Date().toISOString(), this.pendingTransactions, this.getLatestBlock().hash);
         block.mineBlock(this.difficulty);
 
         console.log("Block successfully mined!");
         this.chain.push(block);
 
-        this.pendingTransactions = [
-            new Transaction(null, miningRewardAddress, this.miningReward)
-        ];
+        // Clear pending transactions after mining
+        this.pendingTransactions = [];
 
         if (this.chain.length > 1) {
-          const timeTaken = block.timestamp - this.getLatestBlock().timestamp;
-          this.blockGenerationTime.push(timeTaken);
+            const timeTaken = new Date().getTime() - new Date(this.getLatestBlock().timestamp).getTime();
+            this.blockGenerationTime.push(timeTaken);
 
-          if (this.blockGenerationTime.length >= ADJUSTMENT_INTERVAL) {
-              this.adjustDifficulty();
-              this.blockGenerationTime = [];
-          }
+            if (this.blockGenerationTime.length >= ADJUSTMENT_INTERVAL) {
+                this.adjustDifficulty();
+                this.blockGenerationTime = [];
+            }
         }
     }
 
-    addTransaction(transaction) {
-      if (!transaction.fromAddress || !transaction.toAddress) {
-          throw new Error('Transaction must include a from and to address.');
-      }
-      if (!transaction.verifySignature()) {
-          throw new Error('Transaction signature is invalid.');
-      }
-      this.pendingTransactions.push(transaction);
-    }
-
     adjustDifficulty() {
-      const averageTime = this.blockGenerationTime.reduce((sum, time) => sum + time, 0) / this.blockGenerationTime.length;
+        const averageTime = this.blockGenerationTime.reduce((sum, time) => sum + time, 0) / this.blockGenerationTime.length;
 
-      if (averageTime < TARGET_BLOCK_TIME) {
-          this.difficulty++;
-      } else if (averageTime > TARGET_BLOCK_TIME) {
-          this.difficulty--;
-      }
+        if (averageTime < TARGET_BLOCK_TIME) {
+            this.difficulty++;
+        } else if (averageTime > TARGET_BLOCK_TIME) {
+            this.difficulty--;
+        }
 
-      console.log(`New difficulty: ${this.difficulty}`);
-  }
+        console.log(`New difficulty: ${this.difficulty}`);
+    }
 
     getBalanceOfAddress(address) {
         let balance = 0;
