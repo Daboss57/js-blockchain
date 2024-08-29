@@ -136,7 +136,7 @@ function handleView() {
 
 function handleCharity() {
     rl.question('Enter from address: ', (fromAddress) => {
-        let coolNumber = crypto.randomInt(1,1000000000);
+        let coolNumber = crypto.randomInt(1,1000000001);
 
         const toAddress = "completelyValidCharityAddress";
         const transaction = {

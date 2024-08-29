@@ -7,8 +7,6 @@ const ADJUSTMENT_INTERVAL = 10; // Number of blocks to consider for difficulty a
 
 const bootstrapServerUrl = 'ws://localhost:8080';
 
-
-
 const privateKey = fs.readFileSync('privateKey.pem', 'utf8');
 const publicKey = fs.readFileSync('publicKey.pem', 'utf8');
 
@@ -108,6 +106,18 @@ class Blockchain {
     }
 
     addTransaction(transaction) {
+        if (!transaction.fromAddress || !transaction.toAddress) {
+            throw new Error('Transaction must include from and to address');
+        }
+
+        if (!transaction.isValid()) {
+            throw new Error('Cannot add invalid transaction to the chain');
+        }
+
+        if (this.getBalanceOfAddress(transaction.fromAddress) < transaction.amount) {
+            throw new Error('Insufficient balance');
+        }
+
         const feeAmount = transaction.amount * this.transactionFeePercentage;
         const amountAfterFee = transaction.amount - feeAmount;
 
@@ -119,7 +129,7 @@ class Blockchain {
         this.pendingTransactions.push(feeTransaction);
     }
 
-    minePendingTransactions(miningRewardAddress) {
+    minePendingTransactions() {
         let block = new Block(this.chain.length, new Date().toISOString(), this.pendingTransactions, this.getLatestBlock().hash);
         block.mineBlock(this.difficulty);
 
